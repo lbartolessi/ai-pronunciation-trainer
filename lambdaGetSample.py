@@ -2,9 +2,7 @@
 import pandas as pd
 import json
 import RuleBasedModels
-import epitran
 import random
-import pickle
 
 
 class TextDataset():

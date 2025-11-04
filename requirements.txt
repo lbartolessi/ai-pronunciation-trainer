@@ -11,8 +11,5 @@ eng_to_ipa
 pandas
 flask
 flask_cors
-pickle-mixin
-sqlalchemy
 transformers
 sentencepiece
-transformers
