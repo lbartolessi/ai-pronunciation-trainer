@@ -20,9 +20,9 @@ class WhisperASRModel(IASRModel):
     `IASRModel` interface, making it interchangeable with other ASR implementations.
     """
     def __init__(self, model_name="openai/whisper-base"):
-        """Initializes the Whisper pipeline."""
+        """Initializes the Whisper pipeline using the 'tiny' model for lower memory usage."""
         self.asr = pipeline(
-            "automatic-speech-recognition", model=model_name, return_timestamps="word"
+            "automatic-speech-recognition", model="openai/whisper-tiny", return_timestamps="word"
         )
         self._transcript = ""
         self._word_locations = []

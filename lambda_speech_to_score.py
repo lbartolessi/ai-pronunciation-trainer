@@ -39,9 +39,13 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Create a single, shared ASR model instance to save memory.
+shared_asr_model = pronunciation_trainer.mo.get_asr_model("en", use_whisper=True)
+
 trainer_SST_lambda = {}
-trainer_SST_lambda["de"] = pronunciation_trainer.get_trainer("de")
-trainer_SST_lambda["en"] = pronunciation_trainer.get_trainer("en")
+# Pass the shared model to each trainer instance.
+trainer_SST_lambda["de"] = pronunciation_trainer.get_trainer("de", asr_model=shared_asr_model)
+trainer_SST_lambda["en"] = pronunciation_trainer.get_trainer("en", asr_model=shared_asr_model)
 
 transform = Resample(orig_freq=48000, new_freq=16000)
 

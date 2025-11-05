@@ -14,7 +14,7 @@ import rule_based_models
 logger = logging.getLogger(__name__)
 
 
-def get_trainer(language: str):
+def get_trainer(language: str, asr_model: mi.IASRModel = None):
     """
     Factory function to create and configure a PronunciationTrainer instance.
 
@@ -28,8 +28,10 @@ def get_trainer(language: str):
         PronunciationTrainer: A configured instance of the trainer for the
         specified language.
     """
-
-    asr_model = mo.get_asr_model(language, use_whisper=True)
+    # If an ASR model is not provided, create a new one.
+    # This allows sharing a single model instance to save memory.
+    if asr_model is None:
+        asr_model = mo.get_asr_model(language, use_whisper=True)
 
     if language == "de":
         phonem_converter = rule_based_models.EpitranPhonemConverter(
@@ -72,6 +74,7 @@ class PronunciationTrainer:
         """
         self.asr_model = asr_model
         self.ipa_converter = word_to_ipa_coverter
+        self.language = "de" if isinstance(word_to_ipa_coverter, rule_based_models.EpitranPhonemConverter) else "en"
 
     def get_transcript_and_words_locations(self, audio_length_in_samples: int):
         """
@@ -222,6 +225,7 @@ class PronunciationTrainer:
         current_recorded_audio = self.preprocess_audio(current_recorded_audio)
 
         self.asr_model.processAudio(current_recorded_audio)
+        self.asr_model.processAudio(current_recorded_audio, language=self.language)
 
         current_recorded_transcript, current_recorded_word_locations = (
             self.get_transcript_and_words_locations(current_recorded_audio.shape[1])
