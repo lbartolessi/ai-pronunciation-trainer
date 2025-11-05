@@ -1,11 +1,25 @@
+"""
+Provides concrete implementations of model interfaces using neural networks.
+
+This module contains classes that wrap neural network models (like those from
+Silero or Hugging Face) to make them conform to the abstract base classes
+defined in `model_interfaces`.
+"""
 import torch
 import model_interfaces
 
 class NeuralASR(model_interfaces.IASRModel):
+    """
+    An ASR model implementation using Silero's STT models.
+
+    This class processes audio tensors and uses a CTC (Connectionist Temporal
+    Classification) decoder to produce a text transcript and word timestamps.
+    """
     word_locations_in_samples = None
     audio_transcript = None
 
     def __init__(self, model: torch.nn.Module, decoder) -> None:
+        """Initializes the NeuralASR model."""
         super().__init__()
         self.model = model
         self.decoder = decoder  # Decoder from CTC-outputs to transcripts
@@ -34,13 +48,20 @@ class NeuralASR(model_interfaces.IASRModel):
 
 
 class NeuralTranslator(model_interfaces.ITranslationModel):
+    """
+    A translation model implementation using models from Hugging Face.
+
+    This class uses a tokenizer and a sequence-to-sequence model (like Helsinki-NLP)
+    to translate a given sentence.
+    """
     def __init__(self, model: torch.nn.Module, tokenizer) -> None:
+        """Initializes the NeuralTranslator model."""
         super().__init__()
         self.model = model
         self.tokenizer = tokenizer
 
     def translate_sentence(self, sentence: str) -> str:
-        """Get the transcripts of the process audio"""
+        """Translates a sentence using the configured model."""
         tokenized_text = self.tokenizer(sentence, return_tensors='pt')
         translation = self.model.generate(**tokenized_text)
         translated_text = self.tokenizer.batch_decode(

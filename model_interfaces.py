@@ -1,8 +1,20 @@
+"""
+Defines abstract base classes (interfaces) for various AI model types.
+
+This module provides a set of contracts that concrete model implementations must
+adhere to. Using these interfaces allows the application to be decoupled from
+specific model libraries (like Whisper, Silero, etc.), making it easier to swap
+or add new models in the future.
+"""
 import abc
 import numpy as np
 
 
 class IASRModel(metaclass=abc.ABCMeta):
+    """
+    Interface for an Automatic Speech Recognition (ASR) model.
+    Defines the contract for processing audio and retrieving transcripts.
+    """
     @classmethod
     def __subclasshook__(cls, subclass):
         return (hasattr(subclass, 'getTranscript') and
@@ -29,6 +41,10 @@ class IASRModel(metaclass=abc.ABCMeta):
 
 
 class ITranslationModel(metaclass=abc.ABCMeta):
+    """
+    Interface for a text translation model.
+    Defines the contract for translating a sentence from one language to another.
+    """
     @classmethod
     def __subclasshook__(cls, subclass):
         return (hasattr(subclass, 'translateSentence') and
@@ -41,6 +57,10 @@ class ITranslationModel(metaclass=abc.ABCMeta):
 
 
 class ITextToSpeechModel(metaclass=abc.ABCMeta):
+    """
+    Interface for a Text-to-Speech (TTS) model.
+    Defines the contract for converting a sentence into an audio array.
+    """
     @classmethod
     def __subclasshook__(cls, subclass):
         return (hasattr(subclass, 'getAudioFromSentence') and
@@ -53,6 +73,10 @@ class ITextToSpeechModel(metaclass=abc.ABCMeta):
 
 
 class ITextToPhonemModel(metaclass=abc.ABCMeta):
+    """
+    Interface for a Text-to-Phoneme conversion model.
+    Defines the contract for converting a sentence into its IPA representation.
+    """
     @classmethod
     def __subclasshook__(cls, subclass):
         return (hasattr(subclass, 'convertToPhonem') and

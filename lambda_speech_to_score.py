@@ -1,5 +1,27 @@
+"""AWS Lambda function for processing recorded audio and evaluating pronunciation.
+
+This module provides an AWS Lambda function that serves as the backend for an
+API endpoint designed to handle audio recordings. The primary purpose of this
+function is to process base64 encoded audio data, transcribe the speech to text,
+and compare it against a provided reference text. Following the comparison, it
+generates a detailed analysis of the pronunciation, including accuracy scores and
+word-level feedback.
+
+The core logic for pronunciation assessment is handled by the `pronunciation_trainer`
+module, which this Lambda function utilizes. Additionally, it integrates with the
+`word_matching` module to ensure proper alignment between the transcribed text and
+the reference text. This integration is crucial for delivering precise and
+contextually accurate feedback on pronunciation.
+
+The function is designed to be triggered by an API Gateway event, and it returns
+a JSON response containing the full analysis. This response can then be used by a
+front-end application to display the results to the user, helping them improve
+their pronunciation skills.
+"""
+
 import base64
 import time
+import logging
 import os
 import json
 import tempfile
@@ -10,6 +32,13 @@ from torchaudio.transforms import Resample
 import word_matching as wm
 import pronunciation_trainer
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
 trainer_SST_lambda = {}
 trainer_SST_lambda["de"] = pronunciation_trainer.get_trainer("de")
 trainer_SST_lambda["en"] = pronunciation_trainer.get_trainer("en")
@@ -18,6 +47,46 @@ transform = Resample(orig_freq=48000, new_freq=16000)
 
 
 def lambda_handler(event):
+    """Main handler for the AWS Lambda function.
+
+    This function serves as the primary entry point for the AWS Lambda service. It is
+    designed to receive an event from an API Gateway, which contains the necessary
+    data for pronunciation analysis. The core functionality includes decoding the
+    audio data, processing it to evaluate pronunciation against a reference text,
+    and returning a detailed JSON response with the analysis results.
+
+    The function expects the event to contain a `body` with a JSON string that
+    includes the reference text (`title`), the base64 encoded audio (`base64Audio`),
+    and the language of the text (`language`).
+
+    Args:
+        event (dict): The event object provided by AWS Lambda, which is expected to
+                    contain the following structure:
+                    - "body" (str): A JSON string with the following keys:
+                        - "title" (str): The reference text (real text) against
+                          which the audio is compared.
+                        - "base64Audio" (str): The base64 encoded audio data.
+                        - "language" (str): The language of the text (e.g., "en", "de").
+
+    Returns:
+        str: A JSON string containing the results of the pronunciation analysis.
+             The JSON object includes the following keys:
+             - "real_transcript" (str): The transcript of the recorded audio.
+             - "ipa_transcript" (str): The IPA transcript of the recorded audio.
+             - "pronunciation_accuracy" (str): The overall pronunciation accuracy score.
+             - "real_transcripts" (str): The reference text, with words separated by spaces.
+             - "matched_transcripts" (str): The transcribed words that match the reference.
+             - "real_transcripts_ipa" (str): The IPA representation of the reference text.
+             - "matched_transcripts_ipa" (str): The IPA representation of the matched words.
+             - "pair_accuracy_category" (str): A string of categories for each word pair.
+             - "start_time" (float): The start time of the audio processing.
+             - "end_time" (float): The end time of the audio processing.
+             - "is_letter_correct_all_words" (str): A string indicating which letters
+               were transcribed correctly for each word.
+
+             If the `real_text` is empty, the function returns an empty body with a
+             status code of 200, effectively terminating the process early.
+    """
 
     data = json.loads(event["body"])
 
@@ -54,7 +123,9 @@ def lambda_handler(event):
 
     signal = transform(torch.Tensor(signal)).unsqueeze(0)
 
-    result = trainer_SST_lambda[language].processAudioForGivenText(signal, real_text)
+    result = trainer_SST_lambda[language].process_audio_for_given_text(
+        signal, real_text
+    )
 
     start = time.time()
     real_transcripts_ipa = " ".join(
@@ -90,7 +161,7 @@ def lambda_handler(event):
     pair_accuracy_category = " ".join(
         [str(category) for category in result["pronunciation_categories"]]
     )
-    print("Time to post-process results: ", str(time.time() - start))
+    logger.info("Time to post-process results: %s", str(time.time() - start))
 
     res = {
         "real_transcript": result["recording_transcript"],
@@ -110,9 +181,31 @@ def lambda_handler(event):
 
 
 def audioread_load(path, offset=0.0, duration=None, dtype=np.float32):
-    """Load an audio buffer using audioread.
+    """Loads an audio buffer from a file using the `audioread` library.
 
-    This loads one block at a time, and then concatenates the results.
+    This function is designed to efficiently load audio data from a given file path.
+    It reads the audio in chunks, processes them, and then concatenates them to form
+    a complete audio signal. This approach is memory-efficient, especially for large
+    audio files.
+
+    The function allows for specifying an offset and duration, enabling partial
+    loading of the audio. It also supports specifying the data type for the output
+    array, providing flexibility for different use cases.
+
+    Args:
+        path (str): The file path of the audio file to be loaded.
+        offset (float, optional): The time (in seconds) from the beginning of the
+                                  audio to start reading. Defaults to 0.0.
+        duration (float, optional): The maximum duration (in seconds) of the audio
+                                    to load. If None, the entire file is loaded.
+                                    Defaults to None.
+        dtype (np.dtype, optional): The desired NumPy data type for the output array.
+                                    Defaults to np.float32.
+
+    Returns:
+        Tuple[np.ndarray, int]: A tuple where the first element is a NumPy array
+                                containing the loaded audio samples, and the second
+                                element is the native sample rate of the audio file.
     """
 
     y = []
@@ -168,25 +261,27 @@ def audioread_load(path, offset=0.0, duration=None, dtype=np.float32):
 
 
 def buf_to_float(x, n_bytes=2, dtype=np.float32):
-    """Convert an integer buffer to floating point values.
-    This is primarily useful when loading integer-valued wav data
-    into numpy arrays.
+    """Converts an integer data buffer to floating-point values.
 
-    Parameters
-    ----------
-    x : np.ndarray [dtype=int]
-        The integer-valued data buffer
+    This function is essential for handling audio data that is stored in an
+    integer format, such as in WAV files. It takes an integer buffer and scales
+    it to a floating-point representation, which is a common requirement for
+    audio processing and analysis in NumPy.
 
-    n_bytes : int [1, 2, 4]
-        The number of bytes per sample in ``x``
+    The conversion is performed by first calculating a scaling factor based on the
+    number of bytes per sample. This factor is then applied to the data, which is
+    re-interpreted from an integer format to the specified floating-point type.
 
-    dtype : numeric type
-        The target output type (default: 32-bit float)
+    Args:
+        x (np.ndarray): The integer-valued data buffer to be converted.
+        n_bytes (int, optional): The number of bytes per sample in the input buffer `x`.
+                                 Common values are 1, 2, or 4. Defaults to 2.
+        dtype (numeric type, optional): The target NumPy data type for the output.
+                                        Defaults to `np.float32`.
 
-    Returns
-    -------
-    x_float : np.ndarray [dtype=float]
-        The input data buffer cast to floating point
+    Returns:
+        np.ndarray: A NumPy array containing the input data, but cast to floating-point
+                    values. This array is scaled and ready for further processing.
     """
 
     # Invert the scale of the data

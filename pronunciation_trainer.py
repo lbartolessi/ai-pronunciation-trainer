@@ -1,5 +1,6 @@
 from string import punctuation
 from typing import List, Tuple
+import logging
 import time
 import torch
 import numpy as np
@@ -10,8 +11,23 @@ import word_matching as wm
 import model_interfaces as mi
 import rule_based_models
 
+logger = logging.getLogger(__name__)
+
 
 def get_trainer(language: str):
+    """
+    Factory function to create and configure a PronunciationTrainer instance.
+
+    Args:
+        language (str): The language code (e.g., 'de', 'en').
+
+    Raises:
+        ValueError: If the requested language is not implemented.
+
+    Returns:
+        PronunciationTrainer: A configured instance of the trainer for the
+        specified language.
+    """
 
     asr_model = mo.get_asr_model(language, use_whisper=True)
 
@@ -45,11 +61,31 @@ class PronunciationTrainer:
     def __init__(
         self, asr_model: mi.IASRModel, word_to_ipa_coverter: mi.ITextToPhonemModel
     ) -> None:
+        """
+        Initializes the PronunciationTrainer.
+
+        Args:
+            asr_model (mi.IASRModel): An instance of an Automatic Speech
+                Recognition model.
+            word_to_ipa_coverter (mi.ITextToPhonemModel): An instance of a
+                text-to-phonem converter.
+        """
         self.asr_model = asr_model
         self.ipa_converter = word_to_ipa_coverter
 
     def get_transcript_and_words_locations(self, audio_length_in_samples: int):
+        """
+        Retrieves the transcript and word timestamps from the ASR model.
 
+        Args:
+            audio_length_in_samples (int): The total length of the audio in samples.
+
+        Returns:
+            Tuple[str, list]: A tuple containing:
+                - The full text transcript.
+                - A list of tuples, where each tuple represents the start and
+                  end sample of a word.
+        """
         audio_transcript = self.asr_model.get_transcript()
         word_locations_in_samples = self.asr_model.get_word_locations()
 
@@ -70,9 +106,23 @@ class PronunciationTrainer:
         return audio_transcript, word_locations_in_samples
 
     def get_words_relative_intonation(self, audio: torch.tensor, word_locations: list):
+        """
+        Calculates the relative intonation (energy) for each word in the audio.
+
+        It computes the root mean square (RMS) of the audio signal for each
+        word's location and normalizes it by the mean intonation of the sentence.
+
+        Args:
+            audio (torch.tensor): The audio signal tensor.
+            word_locations (list): A list of tuples with the start and end
+                samples for each word.
+
+        Returns:
+            torch.tensor: A tensor containing the relative intonation for each word.
+        """
         intonations = torch.zeros((len(word_locations), 1))
         intonation_fade_samples = 0.3 * self.sampling_rate
-        print(intonations.shape)
+        logger.debug("Intonations tensor shape: %s", intonations.shape)
         for idx, location in enumerate(word_locations):
             intonation_start = int(
                 np.maximum(0, location[0] - intonation_fade_samples)
@@ -94,12 +144,30 @@ class PronunciationTrainer:
     def process_audio_for_given_text(
         self, recorded_audio: torch.Tensor = None, real_text=None
     ):
+        """
+        Main processing pipeline for evaluating a recorded audio against a real text.
+
+        This method orchestrates the entire evaluation process:
+        1. Transcribes the audio.
+        2. Matches the transcribed words against the real text words.
+        3. Calculates pronunciation accuracy based on phonemic distance.
+        4. Categorizes the pronunciation of each word.
+
+        Args:
+            recorded_audio (torch.Tensor): The recorded audio to evaluate.
+            real_text (str): The ground truth text to compare against.
+
+        Returns:
+            dict: A dictionary containing detailed results of the analysis,
+            including transcripts, IPA conversions, accuracy scores, word
+            timings, and pronunciation categories.
+        """
 
         start = time.time()
         recording_transcript, recording_ipa, word_locations = self.get_audio_transcript(
             recorded_audio
         )
-        print("Time for NN to transcript audio: ", str(time.time() - start))
+        logger.info("Time for NN to transcript audio: %s", str(time.time() - start))
 
         start = time.time()
         (
@@ -107,7 +175,7 @@ class PronunciationTrainer:
             real_and_transcribed_words_ipa,
             mapped_words_indices,
         ) = self.match_sample_and_recorded_words(real_text, recording_transcript)
-        print("Time for matching transcripts: ", str(time.time() - start))
+        logger.info("Time for matching transcripts: %s", str(time.time() - start))
 
         start_time, end_time = self.get_word_locations_from_record_in_seconds(
             word_locations, mapped_words_indices
@@ -135,6 +203,20 @@ class PronunciationTrainer:
         return result
 
     def get_audio_transcript(self, recorded_audio: torch.Tensor = None):
+        """
+        Transcribes an audio tensor to text and phonemes.
+
+        Processes the audio using the configured ASR model to get the text
+        transcript and word locations, then converts the transcript to its
+        phonemic representation (IPA).
+
+        Args:
+            recorded_audio (torch.Tensor): The audio signal to transcribe.
+
+        Returns:
+            Tuple[str, str, list]: A tuple containing the text transcript,
+            the IPA transcript, and the list of word locations (timestamps).
+        """
         current_recorded_audio = recorded_audio
 
         current_recorded_audio = self.preprocess_audio(current_recorded_audio)
@@ -157,6 +239,20 @@ class PronunciationTrainer:
     def get_word_locations_from_record_in_seconds(
         self, word_locations, mapped_words_indices
     ) -> Tuple[str, str]:
+        """
+        Converts word locations from samples to space-separated strings of seconds.
+
+        Args:
+            word_locations (list): A list of tuples with start and end times
+                in samples for each word in the original recording.
+            mapped_words_indices (list): A list of indices that map the real
+                text words to the words found in the recording.
+
+        Returns:
+            Tuple[str, str]: A tuple containing two strings:
+                - The first string is the space-separated start times.
+                - The second string is the space-separated end times.
+        """
         start_time = []
         end_time = []
         for mapped_idx in mapped_words_indices:
@@ -170,6 +266,25 @@ class PronunciationTrainer:
 
     ##################### Evaluation Functions ###########################
     def match_sample_and_recorded_words(self, real_text, recorded_transcript):
+        """
+        Aligns words from a recorded transcript to a real text and converts pairs to IPA.
+
+        Uses a word matching algorithm (DTW) to find the best alignment between
+        the words in the ground truth text and the words from the ASR transcript.
+        It then creates pairs of (real_word, transcribed_word) in both text and
+        IPA format.
+
+        Args:
+            real_text (str): The ground truth text.
+            recorded_transcript (str): The text transcribed from the audio.
+
+        Returns:
+            Tuple[list, list, list]: A tuple containing:
+                - A list of (real_word, transcribed_word) tuples.
+                - A list of (real_word_ipa, transcribed_word_ipa) tuples.
+                - A list of indices mapping real words to the transcribed
+                  word list.
+        """
         words_estimated = recorded_transcript.split()
 
         if real_text is None:
@@ -201,6 +316,23 @@ class PronunciationTrainer:
     def get_pronunciation_accuracy(
         self, real_and_transcribed_words_ipa
     ) -> Tuple[float, List[float]]:
+        """
+        Calculates the overall and per-word pronunciation accuracy.
+
+        Accuracy is calculated based on the Levenshtein distance (edit distance)
+        between the phonemic representations of the real word and the
+        transcribed word.
+
+        Args:
+            real_and_transcribed_words_ipa (list): A list of tuples, where each
+                tuple contains the IPA representation of the real word and the
+                transcribed word.
+
+        Returns:
+            Tuple[float, List[float]]: A tuple containing:
+                - The overall pronunciation accuracy percentage for the sentence.
+                - A list of accuracy percentages for each individual word.
+        """
         total_mismatches = 0.0
         number_of_phonemes = 0.0
         current_words_pronunciation_accuracy = []
@@ -230,9 +362,27 @@ class PronunciationTrainer:
         )
 
     def remove_punctuation(self, word: str) -> str:
+        """
+        Removes all punctuation characters from a string.
+
+        Args:
+            word (str): The input string.
+
+        Returns:
+            str: The string with punctuation removed.
+        """
         return "".join([char for char in word if char not in punctuation])
 
     def get_words_pronunciation_category(self, accuracies) -> list:
+        """
+        Categorizes each word's pronunciation based on its accuracy score.
+
+        Args:
+            accuracies (list): A list of pronunciation accuracy scores for each word.
+
+        Returns:
+            list: A list of integer categories for each word.
+        """
         categories = []
 
         for accuracy in accuracies:
@@ -241,9 +391,33 @@ class PronunciationTrainer:
         return categories
 
     def get_pronunciation_category_from_accuracy(self, accuracy) -> int:
+        """
+        Determines the category for a single accuracy score.
+
+        Compares the accuracy score against predefined thresholds to assign a
+        category (e.g., 0 for good, 1 for okay, 2 for bad).
+
+        Args:
+            accuracy (float): The pronunciation accuracy score.
+
+        Returns:
+            int: The corresponding category index.
+        """
         return np.argmin(abs(self.categories_thresholds - accuracy))
 
     def preprocess_audio(self, audio: torch.tensor) -> torch.tensor:
+        """
+        Normalizes an audio tensor.
+
+        It centers the audio by subtracting the mean and normalizes its
+        amplitude to the range [-1, 1] by dividing by the maximum absolute value.
+
+        Args:
+            audio (torch.tensor): The input audio tensor.
+
+        Returns:
+            torch.tensor: The preprocessed audio tensor.
+        """
         audio = audio - torch.mean(audio)
         audio = audio / torch.max(torch.abs(audio))
         return audio

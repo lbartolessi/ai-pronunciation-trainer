@@ -1,3 +1,10 @@
+"""
+AWS Lambda function for retrieving sample sentences from a dataset.
+
+This module provides a handler to fetch a random sentence based on a specified
+difficulty category and language. It reads from CSV datasets and uses a simple
+categorization based on sentence length.
+"""
 import json
 import random
 import pandas as pd
@@ -32,6 +39,24 @@ LAMBDA_TRANSLATE_NEW_SAMPLE = False
 
 
 def lambda_handler(event):
+    """
+    Main handler for the AWS Lambda function.
+
+    Selects and returns a random sentence from the dataset corresponding to the
+    specified language and difficulty category.
+
+    Args:
+        event (dict): The Lambda event object, expected to contain:
+            - "body" (str): A JSON string with "category" (int) and
+                            "language" (str).
+
+    Returns:
+        str: A JSON string containing the result with the following keys:
+             - "real_transcript" (list): A list containing the sample sentence.
+             - "ipa_transcript" (str): The IPA representation of the sentence.
+             - "transcript_translation" (str): A placeholder for translation
+               (currently empty).
+    """
 
     body = json.loads(event["body"])
 
@@ -69,6 +94,18 @@ def lambda_handler(event):
 
 
 def get_sentence_category(sentence) -> int:
+    """
+    Categorizes a sentence based on its word count.
+
+    Args:
+        sentence (str): The sentence to categorize.
+
+    Returns:
+        int: The category index (1, 2, or 3) based on the number of words.
+             - 1: 1-8 words
+             - 2: 9-20 words
+             - 3: >20 words
+    """
     number_of_words = len(sentence.split())
     categories_word_limits = [0, 8, 20, 100000]
     for category in range(len(categories_word_limits) - 1):

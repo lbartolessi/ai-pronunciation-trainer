@@ -1,3 +1,11 @@
+"""
+Provides functions for aligning sequences of words using Dynamic Time Warping (DTW).
+
+This module is responsible for matching the words from a ground truth text with
+the words produced by an Automatic Speech Recognition (ASR) system. It calculates
+a distance matrix based on phonemic edit distance and then uses DTW to find the
+optimal alignment path between the two word sequences.
+"""
 from string import punctuation
 from typing import List, Tuple
 import numpy as np

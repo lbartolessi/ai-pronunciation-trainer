@@ -1,3 +1,9 @@
+"""
+Provides functions for calculating metrics between words or sequences.
+
+Currently, this module implements the Levenshtein distance (edit distance),
+which is used to quantify the difference between two sequences, such as phonemic
+representations of words."""
 import numpy as np
 
 # ref from https://gitlab.com/-/snippets/1948157
@@ -32,6 +38,20 @@ def edit_distance_python2(a, b):
 
 # https://stackabuse.com/levenshtein-distance-and-text-similarity-in-python/
 def edit_distance_python(seq1, seq2):
+    """
+    Calculates the Levenshtein distance between two sequences.
+
+    This implementation uses a dynamic programming approach with a matrix to
+    compute the minimum number of single-character edits (insertions, deletions,
+    or substitutions) required to change one sequence into the other.
+
+    Args:
+        seq1 (str or list): The first sequence.
+        seq2 (str or list): The second sequence.
+
+    Returns:
+        float: The Levenshtein distance between the two sequences.
+    """
     size_x = len(seq1) + 1
     size_y = len(seq2) + 1
     matrix = np.zeros((size_x, size_y))
