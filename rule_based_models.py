@@ -1,9 +1,6 @@
-import ModelInterfaces
-import torch
-import numpy as np
 import epitran
 import eng_to_ipa
-
+import model_interfaces
 
 def get_phonem_converter(language: str):
     if language == 'de':
@@ -16,25 +13,20 @@ def get_phonem_converter(language: str):
 
     return phonem_converter
 
-class EpitranPhonemConverter(ModelInterfaces.ITextToPhonemModel):
-    word_locations_in_samples = None
-    audio_transcript = None
+class EpitranPhonemConverter(model_interfaces.ITextToPhonemModel):
 
     def __init__(self, epitran_model) -> None:
         super().__init__()
         self.epitran_model = epitran_model
 
-    def convertToPhonem(self, sentence: str) -> str:
+    def convert_to_phonem(self, sentence: str) -> str:
         phonem_representation = self.epitran_model.transliterate(sentence)
         return phonem_representation
 
 
-class EngPhonemConverter(ModelInterfaces.ITextToPhonemModel):
+class EngPhonemConverter(model_interfaces.ITextToPhonemModel):
 
-    def __init__(self,) -> None:
-        super().__init__()
-
-    def convertToPhonem(self, sentence: str) -> str:
+    def convert_to_phonem(self, sentence: str) -> str:
         phonem_representation = eng_to_ipa.convert(sentence)
         phonem_representation = phonem_representation.replace('*','')
         return phonem_representation

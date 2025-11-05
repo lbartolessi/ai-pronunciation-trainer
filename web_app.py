@@ -1,43 +1,43 @@
-from flask import Flask, render_template, request
-import webbrowser
 import os
-from flask_cors import CORS
 import json
+import webbrowser
+from flask import Flask, render_template, request
+from flask_cors import CORS
 
-import lambdaTTS
-import lambdaSpeechToScore
-import lambdaGetSample
+import lambda_tts
+import lambda_speech_to_score
+import lambda_get_sample
 
 app = Flask(__name__)
 cors = CORS(app)
 app.config['CORS_HEADERS'] = '*'
 
-rootPath = ''
+ROOTPATH = ''
 
 
-@app.route(rootPath+'/')
+@app.route(ROOTPATH+'/')
 def main():
     return render_template('main.html')
 
 
-@app.route(rootPath+'/getAudioFromText', methods=['POST'])
-def getAudioFromText():
+@app.route(ROOTPATH+'/getAudioFromText', methods=['POST'])
+def get_audio_from_text():
     event = {'body': json.dumps(request.get_json(force=True))}
-    return lambdaTTS.lambda_handler(event, [])
+    return lambda_tts.lambda_handler(event)
 
 
-@app.route(rootPath+'/getSample', methods=['POST'])
-def getNext():
+@app.route(ROOTPATH+'/getSample', methods=['POST'])
+def get_next():
     event = {'body':  json.dumps(request.get_json(force=True))}
-    return lambdaGetSample.lambda_handler(event, [])
+    return lambda_get_sample.lambda_handler(event)
 
 
-@app.route(rootPath+'/GetAccuracyFromRecordedAudio', methods=['POST'])
-def GetAccuracyFromRecordedAudio():
+@app.route(ROOTPATH+'/GetAccuracyFromRecordedAudio', methods=['POST'])
+def get_accuracy_from_recorded_audio():
 
     try:
         event = {'body': json.dumps(request.get_json(force=True))}
-        lambda_correct_output = lambdaSpeechToScore.lambda_handler(event, [])
+        lambda_correct_output = lambda_speech_to_score.lambda_handler(event)
     except Exception as e:
         print('Error: ', str(e))
         return {
@@ -55,7 +55,7 @@ def GetAccuracyFromRecordedAudio():
 
 
 if __name__ == "__main__":
-    language = 'de'
+    LANGUAGE = 'de'
     print(os.system('pwd'))
     webbrowser.open_new('http://127.0.0.1:3000/')
     app.run(host="0.0.0.0", port=3000)

@@ -1,27 +1,24 @@
-
-import models
-import soundfile as sf
 import json
-import AIModels
-#from flask import Response
-import utilsFileIO
 import os
 import base64
+import soundfile as sf
+import models
+import utils_file_io
 
-sampling_rate = 16000
-model_TTS_lambda = AIModels.NeuralTTS(models.getTTSModel('de'), sampling_rate)
+SAMPLING_RATE = 16000
+model_TTS_lambda = models.get_tts_model('de')
 
 
-def lambda_handler(event, context):
+def lambda_handler(event):
 
     body = json.loads(event['body'])
 
     text_string = body['value']
 
     linear_factor = 0.2
-    audio = model_TTS_lambda.getAudioFromSentence(
-        text_string).detach().numpy()*linear_factor
-    random_file_name = utilsFileIO.generateRandomString(20)+'.wav'
+    audio = model_TTS_lambda.apply_tts(texts=[text_string],
+                                       sample_rate=SAMPLING_RATE)[0].detach().numpy()*linear_factor
+    random_file_name = utils_file_io.generate_random_string(20)+'.wav'
 
     sf.write('./'+random_file_name, audio, 16000)
 

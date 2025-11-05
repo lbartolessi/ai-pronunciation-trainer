@@ -1,4 +1,3 @@
-
 import abc
 import numpy as np
 
@@ -14,12 +13,12 @@ class IASRModel(metaclass=abc.ABCMeta):
                 callable(subclass.processAudio))
 
     @abc.abstractmethod
-    def getTranscript(self) -> str:
+    def get_transcript(self) -> str:
         """Get the transcripts of the process audio"""
         raise NotImplementedError
 
     @abc.abstractmethod
-    def getWordLocations(self) -> list:
+    def get_word_locations(self) -> list:
         """Get the pair of words location from audio"""
         raise NotImplementedError
 
@@ -36,7 +35,7 @@ class ITranslationModel(metaclass=abc.ABCMeta):
                 callable(subclass.translateSentence))
 
     @abc.abstractmethod
-    def translateSentence(self, str) -> str:
+    def translate_sentence(self, sentence: str) -> str:
         """Get the translation of the sentence"""
         raise NotImplementedError
 
@@ -48,7 +47,7 @@ class ITextToSpeechModel(metaclass=abc.ABCMeta):
                 callable(subclass.getAudioFromSentence))
 
     @abc.abstractmethod
-    def getAudioFromSentence(self, str) -> np.array:
+    def get_audio_from_sentence(self, sentence: str) -> np.array:
         """Get audio from sentence"""
         raise NotImplementedError
 
@@ -60,6 +59,6 @@ class ITextToPhonemModel(metaclass=abc.ABCMeta):
                 callable(subclass.convertToPhonem))
 
     @abc.abstractmethod
-    def convertToPhonem(self, str) -> str:
+    def convert_to_phonem(self, sentence: str) -> str:
         """Convert sentence to phonemes"""
         raise NotImplementedError
